@@ -1,8 +1,7 @@
-pip install spotdl
-sudo apt install ffmpeg
-pip install essentia
-pip install IPython
-pip install librosa
-pip install tqdm
-pip install pandas
-pip install plotly
+spotdl
+essentia
+IPython
+librosa
+tqdm
+pandas
+plotly
