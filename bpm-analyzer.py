@@ -1,13 +1,12 @@
 import json
 import os
 
-import essentia
 import essentia.standard as es
-import matplotlib.pyplot as plt
-import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 from tqdm import tqdm
+import librosa
+import warnings
+warnings.filterwarnings('ignore')
 
 
 class SetEncoder(json.JSONEncoder):
@@ -40,7 +39,7 @@ def preprocess():
                     authors = 'yt'
                     title = song
                 song = 'OST/' + folder + '/' + song
-                bpm, bpm_60 = extract(song)
+                bpm, bpm_60 = extract(song, 'librosa')
                 songs_set.append(title)
                 if title in songs_set and songs_set.count(title) > 1:
                     title = title + str(songs_set.count(title) - 1)
@@ -57,20 +56,29 @@ def preprocess():
             "songs_number": len(songs),
             "songs": songs
         })
-    with open('songs.json', 'w') as outfile:
+    with open('songs_librosa.json', 'w') as outfile:
         json.dump(movies, outfile)
     return movies
 
 
-def extract(song):
-    loader = es.MonoLoader(filename=song)
-    audio = loader()
-    rhythm_extractor = es.RhythmExtractor2013(method="multifeature")
-    bpm, beats, beats_confidence, _, beats_intervals = rhythm_extractor(audio)
-    bpm_60, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
-        audio[:60 * 44100])
+def extract(song, tool):
+    if tool == 'essentia':
+        loader = es.MonoLoader(filename=song)
+        audio = loader()
+        rhythm_extractor = es.RhythmExtractor2013(method="multifeature")
+        bpm, beats, beats_confidence, _, beats_intervals = rhythm_extractor(audio)
+        bpm_60, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
+            audio[:60 * 44100])
 
-    return bpm, bpm_60
+        return bpm, bpm_60
+    elif tool == 'librosa':
+        y, sr = librosa.load(song, res_type='kaiser_fast')
+        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+        tempo = librosa.beat.tempo(onset_envelope=onset_env, sr=sr)
+        y, sr = librosa.load(song, res_type='kaiser_fast', duration=60)
+        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+        tempo_60 = librosa.beat.tempo(onset_envelope=onset_env, sr=sr)
+        return tempo[0], tempo_60[0]
 
 
 def extract_():
@@ -164,7 +172,7 @@ def plot_average_bpm():
     fig.show()
 
 
-#preprocess()
+preprocess()
 
 plot_average_bpm()
 plot_bpm()
