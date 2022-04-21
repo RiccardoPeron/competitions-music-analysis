@@ -5,3 +5,4 @@ librosa
 tqdm
 pandas
 plotly
+numpy==1.21
