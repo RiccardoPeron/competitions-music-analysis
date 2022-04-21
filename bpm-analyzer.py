@@ -26,7 +26,7 @@ def get_authors_and_title(song):
     return authors, title
 
 
-def preprocess():
+def preprocess(tool):
     movies = []
     songs_set = []
     for folder in tqdm(sorted(os.listdir('OST')), ncols=100):
@@ -56,7 +56,8 @@ def preprocess():
             "songs_number": len(songs),
             "songs": songs
         })
-    with open('songs_librosa.json', 'w') as outfile:
+    fname = 'songs_' + tool + '.json'
+    with open(fname, 'w') as outfile:
         json.dump(movies, outfile)
     return movies
 
@@ -113,8 +114,8 @@ def extract_():
         bpm_average_60.append(sum(tmp_60) // len(tmp_60))
 
 
-def plot_bpm():
-    f = open('songs.json')
+def plot_bpm(fname):
+    f = open(fname)
     data = json.load(f)
 
     x = []
@@ -130,8 +131,8 @@ def plot_bpm():
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=x, y=y, mode='lines+markers', name='full song'))
     fig.add_trace(
-        go.Scatter(x=x[:100],
-                   y=y_60[:100],
+        go.Scatter(x=x,
+                   y=y_60,
                    mode='lines+markers',
                    name='first 60 seconds'))
 
@@ -142,8 +143,8 @@ def plot_bpm():
     fig.show()
 
 
-def plot_average_bpm():
-    f = open('songs.json')
+def plot_average_bpm(fname):
+    f = open()
     data = json.load(f)
 
     x = []
@@ -171,8 +172,8 @@ def plot_average_bpm():
 
     fig.show()
 
-
-preprocess()
-
-plot_average_bpm()
-plot_bpm()
+# tool = 'librosa'
+# preprocess(tool)
+fname = 'songs_librosa.json'
+plot_average_bpm(fname)
+plot_bpm(fname)
