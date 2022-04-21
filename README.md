@@ -1,4 +1,5 @@
 # disney-ost-analysis
+
 Analysis of the soundtrack of disney movies form 1930 to present
 
 ## Setup
@@ -12,7 +13,7 @@ python3 -m venv ./music-venv
 Start the virtual enviroment
 
 ```bash
-source twitter-analizer-venv/bin/activate
+source music-venv/bin/activate
 ```
 
 Install the packages
