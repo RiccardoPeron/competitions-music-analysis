@@ -6,3 +6,5 @@ tqdm
 pandas
 plotly
 numpy==1.21
+moviepy
+eye3D
