@@ -1,2 +1,6 @@
 /OST
+/OST_results
+/OST_wav
+/OST_splitted
+__pycache__
 /music-venv
