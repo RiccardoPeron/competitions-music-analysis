@@ -11,9 +11,8 @@ if not ost.exists():
     ost.mkdir()
 
 # iterate through the movies
-pbar = tqdm(sorted(os.listdir('OST')))
+pbar = tqdm(sorted(os.listdir('OST')), desc='converting: ', ncols=100)
 for folder in pbar:
-    pbar.set_description(f"converting {folder}")
     # create the movie folder in the main folder
     if not Path('OST_wav/' + folder).exists():
         Path('OST_wav/' + folder).mkdir()
@@ -35,7 +34,7 @@ for folder in pbar:
                     title = title.replace('/', '')
                     track_n = metadata.tag.track_num[0]
                 except:
-                    title = song
+                    title = song[:-4]
                     track_n = i
                 # set all the track numbers in a NN format
                 if track_n < 10:
@@ -44,6 +43,7 @@ for folder in pbar:
                     track_n = str(track_n)
 
                 # convert into wav
+                pbar.set_postfix(f"| {title}")
                 sound = AudioSegment.from_mp3(
                     os.path.join('OST', folder, song))
                 sound.export(os.path.join(
