@@ -1,12 +1,15 @@
 import json
 import os
+import warnings
 
 import essentia.standard as es
+import eyed3
+import librosa
 import plotly.graph_objects as go
 from tqdm import tqdm
-import librosa
-import warnings
-warnings.filterwarnings('ignore')
+
+# uncomment to disable warnings
+# warnings.filterwarnings('ignore')
 
 
 class SetEncoder(json.JSONEncoder):
@@ -17,61 +20,114 @@ class SetEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-def get_authors_and_title(song):
-    authors_title = song.split('-')
-    title = ' '.join(authors_title[1:])
-    title = title[:-4].strip()
-    authors = authors_title[0].split(',')
-    authors = [author.strip() for author in authors]
-    return authors, title
+def get_metadata(song, i):
+    try:
+        metadata = eyed3.load(song)
+        title = metadata.tag.title
+        title = title.replace('/', '')
+        authors = metadata.tag.artist
+        authors = authors.split('/')
+        track_num = metadata.tag.track_num[0]
+        duration = metadata.info.time_secs
+    except:
+        title = song.split('/')[-1][:-4]
+        authors = ['yt']
+        track_num = i
+        duration = 0
+    return title, authors, track_num, duration
 
 
-def preprocess(tool):
+def preprocess_metadata():
     movies = []
-    songs_set = []
-    for folder in tqdm(sorted(os.listdir('OST')), ncols=100):
-        songs = []
-        for song in sorted(os.listdir('OST/' + folder)):
+    n_song = 0
+    for folder in os.listdir('OST'):
+        for song in os.listdir('OST/' + folder):
             if song != '.spotdl-cache':
-                try:
-                    authors, title = get_authors_and_title(song)
-                except:
-                    authors = 'yt'
-                    title = song
+                n_song += 1
+
+    pbar = tqdm(total=n_song, unit='file',
+                bar_format="Preprocessing metadata:\t{percentage:.0f}%|{bar:100}{r_bar}")
+    for folder in sorted(os.listdir('OST')):
+        songs = []
+        for i, song in enumerate(sorted(os.listdir('OST/' + folder))):
+            if song != '.spotdl-cache':
                 song = 'OST/' + folder + '/' + song
-                bpm, bpm_60 = extract(song, 'librosa')
-                songs_set.append(title)
-                if title in songs_set and songs_set.count(title) > 1:
-                    title = title + str(songs_set.count(title) - 1)
+                title, authors, track_num, duration = get_metadata(song, i)
+
                 songs.append({
                     "title": title,
                     "authors": authors,
-                    "bpm": int(bpm),
-                    "bpm_60": int(bpm_60)
+                    "duration": duration,
+                    "track_num": track_num,
                 })
-        movie = folder.split('-')
+                pbar.update(1)
+        songs.sort(key=lambda x: x['track_num'], reverse=False)
+        movie = folder.split('-', 1)
         movie = movie[1].replace('_', ' ').strip()
         movies.append({
             "title": movie,
             "songs_number": len(songs),
             "songs": songs
         })
-    fname = 'songs_' + tool + '.json'
+    fname = 'songs.json'
     with open(fname, 'w') as outfile:
         json.dump(movies, outfile)
     return movies
 
 
+def get_wav_path(song, movie, i):
+    if i+1 < 10:
+        movie_title = '0' + str(i+1)
+    else:
+        movie_title = str(i+1)
+    movie_title += ' - ' + movie['title'].replace(' ', '_')
+
+    if song['track_num'] < 10:
+        track_num = '0' + str(song['track_num'])
+    else:
+        track_num = str(song['track_num'])
+
+    return 'OST_wav/' + movie_title + '/' + track_num + '-' + song['title'] + '.wav'
+
+
+def preprocess_bpm(movies_dict, tool):
+    n_song = 0
+    for movie in movies_dict:
+        n_song += len(movie['songs'])
+    pbar = tqdm(total=n_song, unit='files',
+                bar_format="Preprocessing bpm:\t{percentage:.0f}%|{bar:100}{r_bar}")
+
+    for i, movie in enumerate(movies_dict):
+        for song in movie['songs']:
+            wav_song = get_wav_path(song, movie, i)
+            pbar.set_postfix({'song': song['title'][:20]})
+            bpm, bpm_60 = extract(wav_song, tool)
+
+            song['bpm'] = bpm
+            song['bpm_60'] = bpm_60
+
+            pbar.update(1)
+
+    fname = 'songs_' + tool + '.json'
+    with open(fname, 'w') as outfile:
+        json.dump(movies_dict, outfile)
+
+    return movies_dict
+
+
 def extract(song, tool):
+    # retrieve song BPM with essentia
     if tool == 'essentia':
         loader = es.MonoLoader(filename=song)
         audio = loader()
         rhythm_extractor = es.RhythmExtractor2013(method="multifeature")
-        bpm, beats, beats_confidence, _, beats_intervals = rhythm_extractor(audio)
+        bpm, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
+            audio)
         bpm_60, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
             audio[:60 * 44100])
 
         return bpm, bpm_60
+    # retrieve song BPM with librosa
     elif tool == 'librosa':
         y, sr = librosa.load(song, res_type='kaiser_fast')
         onset_env = librosa.onset.onset_strength(y=y, sr=sr)
@@ -80,38 +136,6 @@ def extract(song, tool):
         onset_env = librosa.onset.onset_strength(y=y, sr=sr)
         tempo_60 = librosa.beat.tempo(onset_envelope=onset_env, sr=sr)
         return tempo[0], tempo_60[0]
-
-
-def extract_():
-    songs = []
-    bpms = []
-    bpms_60 = []
-    movies = []
-    bpm_average = []
-    bpm_average_60 = []
-
-    for folder in sorted(os.listdir('OST')):
-        tmp = []
-        tmp_60 = []
-        for song in sorted(os.listdir('OST/' + folder)):
-            if song != '.spotdl-cache':
-                song = 'OST/' + folder + '/' + song
-                loader = es.MonoLoader(filename=song)
-                audio = loader()
-                rhythm_extractor = es.RhythmExtractor2013(
-                    method="multifeature")
-                bpm = rhythm_extractor(audio)
-                bpm_60 = rhythm_extractor(audio[:60 * 44100])
-
-                bpms.append(bpm)
-                tmp.append(bpm)
-                bpms_60.append(bpm_60)
-                tmp.append(bpm_60)
-                songs.append(song[:-4])
-
-        movies.append(folder[5:])
-        bpm_average.append(sum(tmp) // len(tmp))
-        bpm_average_60.append(sum(tmp_60) // len(tmp_60))
 
 
 def plot_bpm(fname):
@@ -172,8 +196,31 @@ def plot_average_bpm(fname):
 
     fig.show()
 
+
+def compare_movies_bpm(fname):
+    f = open(fname)
+    data = json.load(f)
+    fig = go.Figure()
+    fig.update_layout(title='Movie BPM comparison',
+                      xaxis_title='song number',
+                      yaxis_title='BPM')
+
+    for movie in data:
+        song_n = []
+        song_bpm = []
+        for i, song in enumerate(movie['songs']):
+            song_n.append(i)
+            song_bpm.append(song['bpm'])
+        fig.add_trace(go.Scatter(x=song_n, y=song_bpm,
+                      mode='lines', name=movie['title']))
+
+    fig.show()
+
+
 # tool = 'librosa'
-# preprocess(tool)
+# dataset = preprocess_metadata()
+# preprocess_bpm(dataset, 'librosa')
 fname = 'songs_librosa.json'
-plot_average_bpm(fname)
-plot_bpm(fname)
+compare_movies_bpm(fname)
+# plot_average_bpm(fname)
+# plot_bpm(fname)
