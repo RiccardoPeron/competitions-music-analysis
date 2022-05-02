@@ -5,8 +5,11 @@ import warnings
 import essentia.standard as es
 import eyed3
 import librosa
+import numpy as np
 import plotly.graph_objects as go
 from tqdm import tqdm
+
+import song_key_extractor
 
 # uncomment to disable warnings
 # warnings.filterwarnings('ignore')
@@ -69,7 +72,7 @@ def preprocess_metadata():
             "songs_number": len(songs),
             "songs": songs
         })
-    fname = 'songs.json'
+    fname = 'JSON/songs.json'
     with open(fname, 'w') as outfile:
         json.dump(movies, outfile)
     return movies
@@ -99,16 +102,38 @@ def preprocess_bpm(movies_dict, tool):
 
     for i, movie in enumerate(movies_dict):
         for song in movie['songs']:
-            wav_song = get_wav_path(song, movie, i)
             pbar.set_postfix({'song': song['title'][:20]})
-            bpm, bpm_60 = extract(wav_song, tool)
 
+            wav_song = get_wav_path(song, movie, i)
+            bpm, bpm_60 = extract(wav_song, tool)
             song['bpm'] = bpm
             song['bpm_60'] = bpm_60
 
             pbar.update(1)
 
-    fname = 'songs_' + tool + '.json'
+    fname = 'JSON/songs_' + tool + '.json'
+    with open(fname, 'w') as outfile:
+        json.dump(movies_dict, outfile)
+
+    return movies_dict
+
+
+def preprocess_key(movies_dict, fname):
+    n_song = 0
+    for movie in movies_dict:
+        n_song += len(movie['songs'])
+    pbar = tqdm(total=n_song, unit='files',
+                bar_format="Preprocessing keys:\t{percentage:.0f}%|{bar:100}{r_bar}")
+    for i, movie in enumerate(movies_dict):
+        for song in movie['songs']:
+            pbar.set_postfix({'song': song['title'][:20]})
+
+            wav_song = get_wav_path(song, movie, i)
+            key = song_key_extractor.get_song_key(wav_song)
+            song['key'] = key
+
+            pbar.update(1)
+
     with open(fname, 'w') as outfile:
         json.dump(movies_dict, outfile)
 
@@ -118,15 +143,19 @@ def preprocess_bpm(movies_dict, tool):
 def extract(song, tool):
     # retrieve song BPM with essentia
     if tool == 'essentia':
-        loader = es.MonoLoader(filename=song)
-        audio = loader()
-        rhythm_extractor = es.RhythmExtractor2013(method="multifeature")
-        bpm, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
-            audio)
-        bpm_60, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
-            audio[:60 * 44100])
+        es_song = es.MonoLoader(filename=song)()
+        global_bpm, local_bpm, local_probs = es.TempoCNN(
+            graphFilename='utilities/deeptemp-k16-3.pb')(es_song)
 
-        return bpm, bpm_60
+        # loader = es.MonoLoader(filename=song)
+        # audio = loader()
+        # rhythm_extractor = es.RhythmExtractor2013(method="multifeature")
+        # bpm, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
+        #     audio)
+        # bpm_60, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
+        #     audio[:60 * 44100])
+
+        return global_bpm, global_bpm
     # retrieve song BPM with librosa
     elif tool == 'librosa':
         y, sr = librosa.load(song, res_type='kaiser_fast')
@@ -148,7 +177,11 @@ def plot_bpm(fname):
 
     for movie in data:
         for song in movie['songs']:
-            x.append(song['title'])
+            if song['title'] not in x:
+                x.append(song['title'])
+            else:
+                x.append(song['title'] + '_' + str(x.count(song['title']) + sum(
+                    [x.count(song['title'] + '_' + str(y)) for y in [1, 2, 3, 4, 5, 6, 7, 8, 9]])))
             y.append(song['bpm'])
             y_60.append(song['bpm_60'])
 
@@ -163,12 +196,12 @@ def plot_bpm(fname):
     fig.update_layout(title='Songs BPMs',
                       xaxis_title='song title',
                       yaxis_title='BPMs')
-
+    print(len(x), len(set(x)))
     fig.show()
 
 
 def plot_average_bpm(fname):
-    f = open()
+    f = open(fname)
     data = json.load(f)
 
     x = []
@@ -211,6 +244,10 @@ def compare_movies_bpm(fname):
         for i, song in enumerate(movie['songs']):
             song_n.append(i)
             song_bpm.append(song['bpm'])
+
+        k = 100//len(song_n)
+        song_n = [i*k for i in range(len(song_n))]
+
         fig.add_trace(go.Scatter(x=song_n, y=song_bpm,
                       mode='lines', name=movie['title']))
 
@@ -220,7 +257,10 @@ def compare_movies_bpm(fname):
 # tool = 'librosa'
 # dataset = preprocess_metadata()
 # preprocess_bpm(dataset, 'librosa')
-fname = 'songs_librosa.json'
-compare_movies_bpm(fname)
+fname = 'JSON/songs_librosa.json'
+movies_dict = json.load(open('JSON/songs.json'))
+preprocess_key(movies_dict, fname)
+
+# compare_movies_bpm(fname)
 # plot_average_bpm(fname)
 # plot_bpm(fname)
