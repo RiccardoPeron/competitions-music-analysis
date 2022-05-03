@@ -1,18 +1,21 @@
+import csv
+import os.path
+from os import listdir
+
 import essentia
 import essentia.standard as es
-from os import listdir
-import os.path
-#from os.path import isfile, join
-import json_to_csv
-import pandas as pd
 import librosa
+import pandas as pd
 import soundfile as sf
 from tqdm import tqdm
 
+#from os.path import isfile, join
+import json_to_csv
 
 DIR_WAV_FILES = '/home/riccardo/disney-ost-analysis/OST_wav'
 DIR_SPLITTED_WAV_FILES = '/home/riccardo/disney-ost-analysis/OST_splitted'
 DIR_RESULTS_FILES = '/home/riccardo/disney-ost-analysis/OST_results'
+RESULT_CSV = 'OST_results/results.csv'
 
 
 def compute_all_features(audiofilename):
@@ -24,27 +27,6 @@ def compute_all_features(audiofilename):
                                                       'mean', 'stdev'],
                                                   tonalStats=['mean', 'stdev'])(audiofilename)
     return features
-
-
-def write_features(features, audiofilename):
-    # Write the aggregated features into a temporary directory.
-    #from tempfile import TemporaryDirectory
-    #temp_dir = TemporaryDirectory()
-    #results_file = temp_dir.name + '/results.json'
-
-    results_file = DIR_RESULTS_FILES + "/" + audiofilename + '_results.json'
-    # print(results_file)
-    es.YamlOutput(filename=results_file, format="json")(features)
-
-    # Here I remove the line starting with beats_position as this is a variable lenght feature
-    with open(results_file, "r") as f:
-        lines = f.readlines()
-
-    lines_to_write = [
-        line for line in lines if not line.startswith('    "beats_position"')]
-
-    with open(results_file, "w") as f:
-        f.write(''.join(lines_to_write))
 
 
 def slice_files(audiofilenames_full, slices_number):
@@ -82,371 +64,58 @@ def extract_files():
     return audiofilenames_full
 
 
+def init_csv(fname):
+    start_row = ['track_title', 'lowlevel.average_loudness', 'lowlevel.barkbands.mean', 'lowlevel.barkbands.stdev', 'lowlevel.barkbands_crest.mean', 'lowlevel.barkbands_crest.stdev', 'lowlevel.barkbands_flatness_db.mean', 'lowlevel.barkbands_flatness_db.stdev', 'lowlevel.barkbands_kurtosis.mean', 'lowlevel.barkbands_kurtosis.stdev', 'lowlevel.barkbands_skewness.mean', 'lowlevel.barkbands_skewness.stdev', 'lowlevel.barkbands_spread.mean', 'lowlevel.barkbands_spread.stdev', 'lowlevel.dissonance.mean', 'lowlevel.dissonance.stdev', 'lowlevel.dynamic_complexity', 'lowlevel.erbbands.mean', 'lowlevel.erbbands.stdev', 'lowlevel.erbbands_crest.mean', 'lowlevel.erbbands_crest.stdev', 'lowlevel.erbbands_flatness_db.mean', 'lowlevel.erbbands_flatness_db.stdev', 'lowlevel.erbbands_kurtosis.mean', 'lowlevel.erbbands_kurtosis.stdev', 'lowlevel.erbbands_skewness.mean', 'lowlevel.erbbands_skewness.stdev', 'lowlevel.erbbands_spread.mean', 'lowlevel.erbbands_spread.stdev', 'lowlevel.gfcc.cov', 'lowlevel.gfcc.icov', 'lowlevel.gfcc.mean', 'lowlevel.hfc.mean', 'lowlevel.hfc.stdev', 'lowlevel.loudness_ebu128.integrated', 'lowlevel.loudness_ebu128.loudness_range', 'lowlevel.loudness_ebu128.momentary.mean', 'lowlevel.loudness_ebu128.momentary.stdev', 'lowlevel.loudness_ebu128.short_term.mean', 'lowlevel.loudness_ebu128.short_term.stdev', 'lowlevel.melbands.mean', 'lowlevel.melbands.stdev', 'lowlevel.melbands128.mean', 'lowlevel.melbands128.stdev', 'lowlevel.melbands_crest.mean', 'lowlevel.melbands_crest.stdev', 'lowlevel.melbands_flatness_db.mean', 'lowlevel.melbands_flatness_db.stdev', 'lowlevel.melbands_kurtosis.mean', 'lowlevel.melbands_kurtosis.stdev', 'lowlevel.melbands_skewness.mean', 'lowlevel.melbands_skewness.stdev', 'lowlevel.melbands_spread.mean', 'lowlevel.melbands_spread.stdev', 'lowlevel.mfcc.cov', 'lowlevel.mfcc.icov', 'lowlevel.mfcc.mean', 'lowlevel.pitch_salience.mean', 'lowlevel.pitch_salience.stdev', 'lowlevel.silence_rate_20dB.mean', 'lowlevel.silence_rate_20dB.stdev', 'lowlevel.silence_rate_30dB.mean', 'lowlevel.silence_rate_30dB.stdev', 'lowlevel.silence_rate_60dB.mean', 'lowlevel.silence_rate_60dB.stdev', 'lowlevel.spectral_centroid.mean', 'lowlevel.spectral_centroid.stdev', 'lowlevel.spectral_complexity.mean', 'lowlevel.spectral_complexity.stdev', 'lowlevel.spectral_contrast_coeffs.mean', 'lowlevel.spectral_contrast_coeffs.stdev', 'lowlevel.spectral_contrast_valleys.mean', 'lowlevel.spectral_contrast_valleys.stdev', 'lowlevel.spectral_decrease.mean', 'lowlevel.spectral_decrease.stdev', 'lowlevel.spectral_energy.mean', 'lowlevel.spectral_energy.stdev', 'lowlevel.spectral_energyband_high.mean', 'lowlevel.spectral_energyband_high.stdev', 'lowlevel.spectral_energyband_low.mean', 'lowlevel.spectral_energyband_low.stdev',
+                 'lowlevel.spectral_energyband_middle_high.mean', 'lowlevel.spectral_energyband_middle_high.stdev', 'lowlevel.spectral_energyband_middle_low.mean', 'lowlevel.spectral_energyband_middle_low.stdev', 'lowlevel.spectral_entropy.mean', 'lowlevel.spectral_entropy.stdev', 'lowlevel.spectral_flux.mean', 'lowlevel.spectral_flux.stdev', 'lowlevel.spectral_kurtosis.mean', 'lowlevel.spectral_kurtosis.stdev', 'lowlevel.spectral_rms.mean', 'lowlevel.spectral_rms.stdev', 'lowlevel.spectral_rolloff.mean', 'lowlevel.spectral_rolloff.stdev', 'lowlevel.spectral_skewness.mean', 'lowlevel.spectral_skewness.stdev', 'lowlevel.spectral_spread.mean', 'lowlevel.spectral_spread.stdev', 'lowlevel.spectral_strongpeak.mean', 'lowlevel.spectral_strongpeak.stdev', 'lowlevel.zerocrossingrate.mean', 'lowlevel.zerocrossingrate.stdev', 'metadata.audio_properties.analysis.downmix', 'metadata.audio_properties.analysis.equal_loudness', 'metadata.audio_properties.analysis.length', 'metadata.audio_properties.analysis.sample_rate', 'metadata.audio_properties.analysis.start_time', 'metadata.audio_properties.bit_rate', 'metadata.audio_properties.codec', 'metadata.audio_properties.length', 'metadata.audio_properties.lossless', 'metadata.audio_properties.md5_encoded', 'metadata.audio_properties.number_channels', 'metadata.audio_properties.replay_gain', 'metadata.audio_properties.sample_rate', 'metadata.tags.file_name', 'metadata.version.essentia', 'metadata.version.essentia_git_sha', 'metadata.version.extractor', 'rhythm.beats_count', 'rhythm.beats_loudness.mean', 'rhythm.beats_loudness.stdev', 'rhythm.beats_loudness_band_ratio.mean', 'rhythm.beats_loudness_band_ratio.stdev', 'rhythm.beats_position', 'rhythm.bpm', 'rhythm.bpm_histogram', 'rhythm.bpm_histogram_first_peak_bpm', 'rhythm.bpm_histogram_first_peak_weight', 'rhythm.bpm_histogram_second_peak_bpm', 'rhythm.bpm_histogram_second_peak_spread', 'rhythm.bpm_histogram_second_peak_weight', 'rhythm.danceability', 'rhythm.onset_rate', 'tonal.chords_changes_rate', 'tonal.chords_histogram', 'tonal.chords_key', 'tonal.chords_number_rate', 'tonal.chords_scale', 'tonal.chords_strength.mean', 'tonal.chords_strength.stdev', 'tonal.hpcp.mean', 'tonal.hpcp.stdev', 'tonal.hpcp_crest.mean', 'tonal.hpcp_crest.stdev', 'tonal.hpcp_entropy.mean', 'tonal.hpcp_entropy.stdev', 'tonal.key_edma.key', 'tonal.key_edma.scale', 'tonal.key_edma.strength', 'tonal.key_krumhansl.key', 'tonal.key_krumhansl.scale', 'tonal.key_krumhansl.strength', 'tonal.key_temperley.key', 'tonal.key_temperley.scale', 'tonal.key_temperley.strength', 'tonal.thpcp', 'tonal.tuning_diatonic_strength', 'tonal.tuning_equal_tempered_deviation', 'tonal.tuning_frequency', 'tonal.tuning_nontempered_energy_ratio']
+    f = open(fname, "w")
+    writer = csv.writer(f)
+    writer.writerow(start_row)
+    f.close()
+
+
+def write_csv(fname, song, feature):
+    features_names = sorted(features.descriptorNames())
+    row = []
+    row.append(song)
+    for name in features_names:
+        if type(feature[name]) == type(0) or type(feature[name]) == type(0.1):
+            row.append(feature[name])
+        else:
+            row.append(0)
+
+    f = open(fname, "a")
+    writer = csv.writer(f)
+    writer.writerow(row)
+    f.close()
+
+
 if __name__ == '__main__':
 
     # Uncomment if slicing is not performed
     #
     #audiofilenames_full = [f for f in listdir(DIR_WAV_FILES) if (os.path.isfile(os.path.join(DIR_WAV_FILES, f)) and (f.endswith(".wav") or f.endswith(".mp3")))]
-    audiofilenames_full = extract_files()
+    # audiofilenames_full = extract_files()
     #
     # Split each file in 3 equal parts; rename each file part with _000, _001, _002.
-    slices_number = 3
-    audiofilenames = slice_files(audiofilenames_full, slices_number)
+    # slices_number = 3
+    # audiofilenames = slice_files(audiofilenames_full, slices_number)
 
     # Comment if slicing is not performed:
     audiofilenames = [f for f in sorted(listdir(DIR_SPLITTED_WAV_FILES)) if (os.path.isfile(
         os.path.join(DIR_SPLITTED_WAV_FILES, f)) and (f.endswith(".wav") or f.endswith(".mp3")))]
 
     order_processed_files = []
-    emotion_labels = []
 
-    """
-    emotion_labels_dict = {
-                            "ms01_1.wav": "Angry",
-                            "ms01_2.wav": "Happy",
-                            "ms01_3.wav": "Relaxed",
-                            "ms01_4.wav": "Relaxed",
-                            "ms01_5.wav": "Sad",
-                            "ms01_6.wav": "Sad",
-                            "ms02_1.wav": "Relaxed",
-                            "ms02_2.wav": "Angry",
-                            "ms02_3.wav": "Angry",
-                            "ms02_4.wav": "Relaxed",
-                            "ms02_5.wav": "Happy",
-                            "ms02_6.wav": "Sad",
-                            "ms03_1.wav": "Happy",
-                            "ms03_2.wav": "Angry",
-                            "ms03_3.wav": "Sad",
-                            "ms03_4.wav": "Relaxed",
-                            "ms04_1.wav": "Relaxed",
-                            "ms04_2.wav": "Relaxed",
-                            "ms04_3.wav": "Happy",
-                            "ms04_4.wav": "Happy",
-                            "ms04_5.wav": "Angry",
-                            "ms04_6.wav": "Angry",
-                            "ms04_7.wav": "Sad",
-                            "ms04_8.wav": "Sad",
-                            "ms05_1.wav": "Relaxed",
-                            "ms05_2.wav": "Happy",
-                            "ms05_3.wav": "Angry",
-                            "ms05_4.wav": "Angry",
-                            "ms05_5.wav": "Sad",
-                            "ms06_1.wav": "Angry",
-                            "ms06_2.wav": "Happy",
-                            "ms06_3.wav": "Relaxed",
-                            "ms06_4.wav": "Sad",
-                            "ms06_5.wav": "Relaxed",
-                            "ms06_6.wav": "Sad",
-                            "ms06_7.wav": "Happy",
-                            "ms06_8.wav": "Angry",
-                            "ms07_1.wav": "Relaxed",
-                            "ms07_2.wav": "Sad",
-                            "ms07_3.wav": "Happy",
-                            "ms07_4.wav": "Angry",
-                            "ms08_1.wav": "Happy",
-                            "ms08_2.wav": "Relaxed",
-                            "ms08_3.wav": "Sad",
-                            "ms08_4.wav": "Angry",
-                            "ms08_5.wav": "Relaxed",
-                            "ms09_1.wav": "Happy",
-                            "ms09_2.wav": "Relaxed",
-                            "ms09_3.wav": "Angry",
-                            "ms09_4.wav": "Relaxed",
-                            "ms09_5.wav": "Happy",
-                            "ms10_1.wav": "Happy",
-                            "ms10_2.wav": "Relaxed",
-                            "ms10_3.wav": "Sad",
-                            "ms10_4.wav": "Angry",
-                            "ms11_1.wav": "Relaxed",
-                            "ms11_2.wav": "Happy",
-                            "ms11_3.wav": "Angry",
-                            "ms11_4.wav": "Sad"
-                            }
-
-    """
-
-    # Angry: 0, Happy: 1, Relaxed: 2, Sad: 3
-    ''' 
-    emotion_labels_dict = {
-                            "ms01_1.wav": 0,
-                            "ms01_2.wav": 1,
-                            "ms01_3.wav": 2,
-                            "ms01_4.wav": 2,
-                            "ms01_5.wav": 3,
-                            "ms01_6.wav": 3,
-                            "ms02_1.wav": 2,
-                            "ms02_2.wav": 0,
-                            "ms02_3.wav": 0,
-                            "ms02_4.wav": 2,
-                            "ms02_5.wav": 1,
-                            "ms02_6.wav": 3,
-                            "ms03_1.wav": 1,
-                            "ms03_2.wav": 0,
-                            "ms03_3.wav": 3,
-                            "ms03_4.wav": 2,
-                            "ms04_1.wav": 2,
-                            "ms04_2.wav": 2,
-                            "ms04_3.wav": 1,
-                            "ms04_4.wav": 1,
-                            "ms04_5.wav": 0,
-                            "ms04_6.wav": 0,
-                            "ms04_7.wav": 3,
-                            "ms04_8.wav": 3,
-                            "ms05_1.wav": 2,
-                            "ms05_2.wav": 1,
-                            "ms05_3.wav": 0,
-                            "ms05_4.wav": 0,
-                            "ms05_5.wav": 3,
-                            "ms06_1.wav": 0,
-                            "ms06_2.wav": 1,
-                            "ms06_3.wav": 2,
-                            "ms06_4.wav": 3,
-                            "ms06_5.wav": 2,
-                            "ms06_6.wav": 3,
-                            "ms06_7.wav": 1,
-                            "ms06_8.wav": 0,
-                            "ms07_1.wav": 2,
-                            "ms07_2.wav": 3,
-                            "ms07_3.wav": 1,
-                            "ms07_4.wav": 0,
-                            "ms08_1.wav": 1,
-                            "ms08_2.wav": 2,
-                            "ms08_3.wav": 3,
-                            "ms08_4.wav": 0,
-                            "ms08_5.wav": 2,
-                            "ms09_1.wav": 1,
-                            "ms09_2.wav": 2,
-                            "ms09_3.wav": 0,
-                            "ms09_4.wav": 2,
-                            "ms09_5.wav": 1,
-                            "ms10_1.wav": 1,
-                            "ms10_2.wav": 2,
-                            "ms10_3.wav": 3,
-                            "ms10_4.wav": 0,
-                            "ms11_1.wav": 2,
-                            "ms11_2.wav": 1,
-                            "ms11_3.wav": 0,
-                            "ms11_4.wav": 3
-                            }
-    '''
-    emotion_labels_dict = {
-        "ms01_1.wav_000.wav": 0,
-        "ms01_2.wav_000.wav": 1,
-        "ms01_3.wav_000.wav": 2,
-        "ms01_4.wav_000.wav": 2,
-        "ms01_5.wav_000.wav": 3,
-        "ms01_6.wav_000.wav": 3,
-        "ms02_1.wav_000.wav": 2,
-        "ms02_2.wav_000.wav": 0,
-        "ms02_3.wav_000.wav": 0,
-        "ms02_4.wav_000.wav": 2,
-        "ms02_5.wav_000.wav": 1,
-        "ms02_6.wav_000.wav": 3,
-        "ms03_1.wav_000.wav": 1,
-        "ms03_2.wav_000.wav": 0,
-        "ms03_3.wav_000.wav": 3,
-        "ms03_4.wav_000.wav": 2,
-        "ms04_1.wav_000.wav": 2,
-        "ms04_2.wav_000.wav": 2,
-        "ms04_3.wav_000.wav": 1,
-        "ms04_4.wav_000.wav": 1,
-        "ms04_5.wav_000.wav": 0,
-        "ms04_6.wav_000.wav": 0,
-        "ms04_7.wav_000.wav": 3,
-        "ms04_8.wav_000.wav": 3,
-        "ms05_1.wav_000.wav": 2,
-        "ms05_2.wav_000.wav": 1,
-        "ms05_3.wav_000.wav": 0,
-        "ms05_4.wav_000.wav": 0,
-        "ms05_5.wav_000.wav": 3,
-        "ms06_1.wav_000.wav": 0,
-        "ms06_2.wav_000.wav": 1,
-        "ms06_3.wav_000.wav": 2,
-        "ms06_4.wav_000.wav": 3,
-        "ms06_5.wav_000.wav": 2,
-        "ms06_6.wav_000.wav": 3,
-        "ms06_7.wav_000.wav": 1,
-        "ms06_8.wav_000.wav": 0,
-        "ms07_1.wav_000.wav": 2,
-        "ms07_2.wav_000.wav": 3,
-        "ms07_3.wav_000.wav": 1,
-        "ms07_4.wav_000.wav": 0,
-        "ms08_1.wav_000.wav": 1,
-        "ms08_2.wav_000.wav": 2,
-        "ms08_3.wav_000.wav": 3,
-        "ms08_4.wav_000.wav": 0,
-        "ms08_5.wav_000.wav": 2,
-        "ms09_1.wav_000.wav": 1,
-        "ms09_2.wav_000.wav": 2,
-        "ms09_3.wav_000.wav": 0,
-        "ms09_4.wav_000.wav": 2,
-        "ms09_5.wav_000.wav": 1,
-        "ms10_1.wav_000.wav": 1,
-        "ms10_2.wav_000.wav": 2,
-        "ms10_3.wav_000.wav": 3,
-        "ms10_4.wav_000.wav": 0,
-        "ms11_1.wav_000.wav": 2,
-        "ms11_2.wav_000.wav": 1,
-        "ms11_3.wav_000.wav": 0,
-        "ms11_4.wav_000.wav": 3,
-        "ms01_1.wav_001.wav": 0,
-        "ms01_2.wav_001.wav": 1,
-        "ms01_3.wav_001.wav": 2,
-        "ms01_4.wav_001.wav": 2,
-        "ms01_5.wav_001.wav": 3,
-        "ms01_6.wav_001.wav": 3,
-        "ms02_1.wav_001.wav": 2,
-        "ms02_2.wav_001.wav": 0,
-        "ms02_3.wav_001.wav": 0,
-        "ms02_4.wav_001.wav": 2,
-        "ms02_5.wav_001.wav": 1,
-        "ms02_6.wav_001.wav": 3,
-        "ms03_1.wav_001.wav": 1,
-        "ms03_2.wav_001.wav": 0,
-        "ms03_3.wav_001.wav": 3,
-        "ms03_4.wav_001.wav": 2,
-        "ms04_1.wav_001.wav": 2,
-        "ms04_2.wav_001.wav": 2,
-        "ms04_3.wav_001.wav": 1,
-        "ms04_4.wav_001.wav": 1,
-        "ms04_5.wav_001.wav": 0,
-        "ms04_6.wav_001.wav": 0,
-        "ms04_7.wav_001.wav": 3,
-        "ms04_8.wav_001.wav": 3,
-        "ms05_1.wav_001.wav": 2,
-        "ms05_2.wav_001.wav": 1,
-        "ms05_3.wav_001.wav": 0,
-        "ms05_4.wav_001.wav": 0,
-        "ms05_5.wav_001.wav": 3,
-        "ms06_1.wav_001.wav": 0,
-        "ms06_2.wav_001.wav": 1,
-        "ms06_3.wav_001.wav": 2,
-        "ms06_4.wav_001.wav": 3,
-        "ms06_5.wav_001.wav": 2,
-        "ms06_6.wav_001.wav": 3,
-        "ms06_7.wav_001.wav": 1,
-        "ms06_8.wav_001.wav": 0,
-        "ms07_1.wav_001.wav": 2,
-        "ms07_2.wav_001.wav": 3,
-        "ms07_3.wav_001.wav": 1,
-        "ms07_4.wav_001.wav": 0,
-        "ms08_1.wav_001.wav": 1,
-        "ms08_2.wav_001.wav": 2,
-        "ms08_3.wav_001.wav": 3,
-        "ms08_4.wav_001.wav": 0,
-        "ms08_5.wav_001.wav": 2,
-        "ms09_1.wav_001.wav": 1,
-        "ms09_2.wav_001.wav": 2,
-        "ms09_3.wav_001.wav": 0,
-        "ms09_4.wav_001.wav": 2,
-        "ms09_5.wav_001.wav": 1,
-        "ms10_1.wav_001.wav": 1,
-        "ms10_2.wav_001.wav": 2,
-        "ms10_3.wav_001.wav": 3,
-        "ms10_4.wav_001.wav": 0,
-        "ms11_1.wav_001.wav": 2,
-        "ms11_2.wav_001.wav": 1,
-        "ms11_3.wav_001.wav": 0,
-        "ms11_4.wav_001.wav": 3,
-        "ms01_1.wav_002.wav": 0,
-        "ms01_2.wav_002.wav": 1,
-        "ms01_3.wav_002.wav": 2,
-        "ms01_4.wav_002.wav": 2,
-        "ms01_5.wav_002.wav": 3,
-        "ms01_6.wav_002.wav": 3,
-        "ms02_1.wav_002.wav": 2,
-        "ms02_2.wav_002.wav": 0,
-        "ms02_3.wav_002.wav": 0,
-        "ms02_4.wav_002.wav": 2,
-        "ms02_5.wav_002.wav": 1,
-        "ms02_6.wav_002.wav": 3,
-        "ms03_1.wav_002.wav": 1,
-        "ms03_2.wav_002.wav": 0,
-        "ms03_3.wav_002.wav": 3,
-        "ms03_4.wav_002.wav": 2,
-        "ms04_1.wav_002.wav": 2,
-        "ms04_2.wav_002.wav": 2,
-        "ms04_3.wav_002.wav": 1,
-        "ms04_4.wav_002.wav": 1,
-        "ms04_5.wav_002.wav": 0,
-        "ms04_6.wav_002.wav": 0,
-        "ms04_7.wav_002.wav": 3,
-        "ms04_8.wav_002.wav": 3,
-        "ms05_1.wav_002.wav": 2,
-        "ms05_2.wav_002.wav": 1,
-        "ms05_3.wav_002.wav": 0,
-        "ms05_4.wav_002.wav": 0,
-        "ms05_5.wav_002.wav": 3,
-        "ms06_1.wav_002.wav": 0,
-        "ms06_2.wav_002.wav": 1,
-        "ms06_3.wav_002.wav": 2,
-        "ms06_4.wav_002.wav": 3,
-        "ms06_5.wav_002.wav": 2,
-        "ms06_6.wav_002.wav": 3,
-        "ms06_7.wav_002.wav": 1,
-        "ms06_8.wav_002.wav": 0,
-        "ms07_1.wav_002.wav": 2,
-        "ms07_2.wav_002.wav": 3,
-        "ms07_3.wav_002.wav": 1,
-        "ms07_4.wav_002.wav": 0,
-        "ms08_1.wav_002.wav": 1,
-        "ms08_2.wav_002.wav": 2,
-        "ms08_3.wav_002.wav": 3,
-        "ms08_4.wav_002.wav": 0,
-        "ms08_5.wav_002.wav": 2,
-        "ms09_1.wav_002.wav": 1,
-        "ms09_2.wav_002.wav": 2,
-        "ms09_3.wav_002.wav": 0,
-        "ms09_4.wav_002.wav": 2,
-        "ms09_5.wav_002.wav": 1,
-        "ms10_1.wav_002.wav": 1,
-        "ms10_2.wav_002.wav": 2,
-        "ms10_3.wav_002.wav": 3,
-        "ms10_4.wav_002.wav": 0,
-        "ms11_1.wav_002.wav": 2,
-        "ms11_2.wav_002.wav": 1,
-        "ms11_3.wav_002.wav": 0,
-        "ms11_4.wav_002.wav": 3
-    }
-
+    init_csv(RESULT_CSV)
     pbar = tqdm(total=len(audiofilenames), unit='files',
                 bar_format="extracting:\t{percentage:.0f}%|{bar:100}{r_bar}")
     for f in audiofilenames:
         pbar.set_postfix({'filename': f[:20]})
-        # print(60*"-")
-        # print(f"filename: {f}")
+
         audiofilename = os.path.join(DIR_SPLITTED_WAV_FILES, f)
         features = compute_all_features(audiofilename)
-        write_features(features, f)
+
+        write_csv(RESULT_CSV, f, features)
         order_processed_files.append(f)
-        # emotion_labels.append(emotion_labels_dict[f])
+
         pbar.update(1)
-
-    resultsfilenames = [f for f in listdir(DIR_RESULTS_FILES) if (
-        os.path.isfile(os.path.join(DIR_RESULTS_FILES, f)) and f.endswith(".json"))]
-    # print(60*"-")
-    # print(f"resultsfilenames: {resultsfilenames}")
-
-    args_input = [DIR_RESULTS_FILES + "/" + f for f in resultsfilenames]
-    args_output = DIR_RESULTS_FILES + "/" + "temp.csv"
-    args_include = "metadata.audio_properties.* metadata.tags.musicbrainz_recordingid.0 lowlevel.* rhythm.* tonal.*"
-    args_ignore = None
-    args_add_filename = None
-    json_to_csv.convert_all(args_input, args_output,
-                            args_include, args_ignore, args_add_filename)
-
-    # print(order_processed_files)
-
-    csv_input = pd.read_csv(args_output)
-
-    csv_input['AudioFilenames'] = order_processed_files
-    cols = list(csv_input.columns)
-    cols = [cols[-1]] + cols[:-1]
-    csv_input = csv_input[cols]
-
-    # csv_input['Emotion'] = emotion_labels
-    # cols = list(csv_input.columns)
-    # cols = [cols[-1]] + cols[:-1]
-    # csv_input = csv_input[cols]
-
-    csv_input.to_csv(DIR_RESULTS_FILES + "/" + 'all_results.csv', index=False)
