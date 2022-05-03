@@ -27,5 +27,5 @@ for id in tqdm(index):
                 )
             )
 
-fig.write_html("file.html")
+fig.write_html("OST_results/essentia_features_plot.html")
 fig.show()
