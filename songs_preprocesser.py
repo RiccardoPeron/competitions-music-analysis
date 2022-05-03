@@ -1,5 +1,6 @@
 import json
 import os
+from typing import Counter
 import warnings
 
 import essentia.standard as es
@@ -7,6 +8,7 @@ import eyed3
 import librosa
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from tqdm import tqdm
 
 import song_key_extractor
@@ -230,11 +232,11 @@ def plot_average_bpm(fname):
     fig.show()
 
 
-def compare_movies_bpm(fname):
+def compare_movies_bpm(fname, field):
     f = open(fname)
     data = json.load(f)
     fig = go.Figure()
-    fig.update_layout(title='Movie BPM comparison',
+    fig.update_layout(title='Movie ' + field + ' comparison',
                       xaxis_title='song number',
                       yaxis_title='BPM')
 
@@ -243,7 +245,7 @@ def compare_movies_bpm(fname):
         song_bpm = []
         for i, song in enumerate(movie['songs']):
             song_n.append(i)
-            song_bpm.append(song['bpm'])
+            song_bpm.append(song[field])
 
         k = 100//len(song_n)
         song_n = [i*k for i in range(len(song_n))]
@@ -254,13 +256,53 @@ def compare_movies_bpm(fname):
     fig.show()
 
 
+def plot_keys(fname):
+    f = open(fname)
+    data = json.load(f)
+
+    k = []
+    maj_min = []
+
+    for movie in data:
+        for song in movie['songs']:
+            k.append(song['key'])
+            if 'major' in song['key']:
+                maj_min.append('major')
+            else:
+                maj_min.append('minor')
+
+    k = Counter(k)
+    maj_min = Counter(maj_min)
+
+    fig = make_subplots(rows=1, cols=2, specs=[
+                        [{'type': 'domain'}, {'type': 'domain'}]])
+    fig.add_trace(go.Pie(
+        labels=list(k.keys()),
+        values=list(k.values())
+    ), 1, 1)
+    fig.add_trace(go.Pie(
+        labels=list(maj_min.keys()),
+        values=list(maj_min.values())
+    ), 1, 2)
+
+    fig.update_traces(hole=.4, hoverinfo="label+percent+name")
+    fig.update_layout(
+        title_text="Songs keys",
+        # Add annotations in the center of the donut pies.
+        annotations=[dict(text='Key distribucion', x=0.18, y=0.5, font_size=20, showarrow=False),
+                     dict(text='Major/Minor', x=0.82, y=0.5, font_size=20, showarrow=False)])
+
+    fig.show()
+
+
 # tool = 'librosa'
 # dataset = preprocess_metadata()
 # preprocess_bpm(dataset, 'librosa')
 fname = 'JSON/songs_librosa.json'
-movies_dict = json.load(open('JSON/songs.json'))
+movies_dict = json.load(open('JSON/songs_librosa copy.json'))
 preprocess_key(movies_dict, fname)
 
-# compare_movies_bpm(fname)
-# plot_average_bpm(fname)
-# plot_bpm(fname)
+compare_movies_bpm(fname, 'bpm')
+plot_average_bpm(fname)
+plot_bpm(fname)
+plot_keys(fname)
