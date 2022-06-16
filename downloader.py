@@ -8,11 +8,16 @@ from pathlib import Path
 print('import spotdl...')
 
 
-def download(title, link, out_folder):
+def download(title, link, out_folder, i):
     print("downloading ", title, " OTS")
     os.chdir('./' + out_folder)
-    os.mkdir(title)
-    os.chdir('./' + title)
+    fname = ''
+    if i < 10:
+        fname = '0' + str(i) + ' - ' + title
+    else:
+        fname = str(i) + ' - ' + title
+    os.mkdir(fname)
+    os.chdir('./' + fname)
     # subprocess.check_call(['touch', 'a.txt'])
     # subprocess.check_call([sys.executable, spotdl.__file__, link])
     subprocess.check_call(['spotdl', link, '--output-format wav'])
@@ -30,12 +35,12 @@ def download_all(json_source, out_folder):
     if not ost.exists():
         ost.mkdir()
 
-    for movie in movies:
+    for i, movie in enumerate(movies):
         link = movie["link"].replace(" ", "_")
         title = movie["title"].replace(" ", "_")
-        download(title, link, out_folder)
+        download(title, link, out_folder, i+1)
 
     print('--- DONE ---')
 
 
-download_all('sanremo.json', 'Sanremo')
+# download_all('sanremo.json', 'Sanremo')
