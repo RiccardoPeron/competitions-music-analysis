@@ -25,7 +25,7 @@ class SetEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-def get_metadata(song, i):
+def get_metadata(song, i, usetrackn):
     try:
         metadata = eyed3.load(song)
         title = metadata.tag.title
@@ -37,27 +37,29 @@ def get_metadata(song, i):
     except:
         title = song.split('/')[-1][:-4]
         authors = ['yt']
-        track_num = i
         duration = 0
+    if not usetrackn:
+        track_num = i
     return title, authors, track_num, duration
 
 
-def preprocess_metadata():
+def preprocess_metadata(source, usetrackn=True):
     movies = []
     n_song = 0
-    for folder in os.listdir('OST'):
-        for song in os.listdir('OST/' + folder):
+    for folder in os.listdir(source):
+        for song in os.listdir(source + '/' + folder):
             if song != '.spotdl-cache':
                 n_song += 1
 
     pbar = tqdm(total=n_song, unit='file',
                 bar_format="Preprocessing metadata:\t{percentage:.0f}%|{bar:100}{r_bar}")
-    for folder in sorted(os.listdir('OST')):
+    for folder in sorted(os.listdir(source)):
         songs = []
-        for i, song in enumerate(sorted(os.listdir('OST/' + folder))):
+        for i, song in enumerate(sorted(os.listdir(source + '/' + folder))):
             if song != '.spotdl-cache':
-                song = 'OST/' + folder + '/' + song
-                title, authors, track_num, duration = get_metadata(song, i)
+                song = source + '/' + folder + '/' + song
+                title, authors, track_num, duration = get_metadata(
+                    song, i, usetrackn)
 
                 songs.append({
                     "title": title,
@@ -66,21 +68,25 @@ def preprocess_metadata():
                     "track_num": track_num,
                 })
                 pbar.update(1)
+
         songs.sort(key=lambda x: x['track_num'], reverse=False)
-        movie = folder.split('-', 1)
-        movie = movie[1].replace('_', ' ').strip()
+        try:
+            movie = folder.split('-', 1)
+            movie = movie[1].replace('_', ' ').strip()
+        except:
+            movie = folder.strip()
         movies.append({
             "title": movie,
             "songs_number": len(songs),
             "songs": songs
         })
-    fname = 'JSON/songs.json'
+    fname = 'JSON/' + source + 'songs.json'
     with open(fname, 'w') as outfile:
         json.dump(movies, outfile)
     return movies
 
 
-def get_wav_path(song, movie, i):
+def get_wav_path(song, movie, i, source):
     if i+1 < 10:
         movie_title = '0' + str(i+1)
     else:
@@ -92,10 +98,10 @@ def get_wav_path(song, movie, i):
     else:
         track_num = str(song['track_num'])
 
-    return 'OST_wav/' + movie_title + '/' + track_num + '-' + song['title'] + '.wav'
+    return source + '_wav/' + movie_title + '/' + track_num + '-' + song['title'] + '.wav'
 
 
-def preprocess_bpm(movies_dict, tool):
+def preprocess_bpm(movies_dict, tool, source):
     n_song = 0
     for movie in movies_dict:
         n_song += len(movie['songs'])
@@ -106,21 +112,21 @@ def preprocess_bpm(movies_dict, tool):
         for song in movie['songs']:
             pbar.set_postfix({'song': song['title'][:20]})
 
-            wav_song = get_wav_path(song, movie, i)
+            wav_song = get_wav_path(song, movie, i, source)
             bpm, bpm_60 = extract(wav_song, tool)
             song['bpm'] = bpm
             song['bpm_60'] = bpm_60
 
             pbar.update(1)
 
-    fname = 'JSON/songs_' + tool + '.json'
+    fname = 'JSON/' + source + 'songs_' + tool + '.json'
     with open(fname, 'w') as outfile:
         json.dump(movies_dict, outfile)
 
-    return movies_dict
+    return movies_dict, fname
 
 
-def preprocess_key(movies_dict, fname):
+def preprocess_key(movies_dict, fname, source):
     n_song = 0
     for movie in movies_dict:
         n_song += len(movie['songs'])
@@ -130,7 +136,7 @@ def preprocess_key(movies_dict, fname):
         for song in movie['songs']:
             pbar.set_postfix({'song': song['title'][:20]})
 
-            wav_song = get_wav_path(song, movie, i)
+            wav_song = get_wav_path(song, movie, i, source)
             key = song_key_extractor.get_song_key(wav_song)
             song['key'] = key
 
@@ -145,19 +151,19 @@ def preprocess_key(movies_dict, fname):
 def extract(song, tool):
     # retrieve song BPM with essentia
     if tool == 'essentia':
-        es_song = es.MonoLoader(filename=song)()
-        global_bpm, local_bpm, local_probs = es.TempoCNN(
-            graphFilename='utilities/deeptemp-k16-3.pb')(es_song)
+        # es_song = es.MonoLoader(filename=song)()
+        # global_bpm, local_bpm, local_probs = es.TempoCNN(
+        #     graphFilename='utilities/deeptemp-k16-3.pb')(es_song)
 
-        # loader = es.MonoLoader(filename=song)
-        # audio = loader()
-        # rhythm_extractor = es.RhythmExtractor2013(method="multifeature")
-        # bpm, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
-        #     audio)
-        # bpm_60, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
-        #     audio[:60 * 44100])
+        loader = es.MonoLoader(filename=song)
+        audio = loader()
+        rhythm_extractor = es.RhythmExtractor2013(method="multifeature")
+        bpm, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
+            audio)
+        bpm_60, beats, beats_confidence, _, beats_intervals = rhythm_extractor(
+            audio[:60 * 44100])
 
-        return global_bpm, global_bpm
+        return int(bpm), int(bpm_60)
     # retrieve song BPM with librosa
     elif tool == 'librosa':
         y, sr = librosa.load(song, res_type='kaiser_fast')
@@ -166,7 +172,7 @@ def extract(song, tool):
         y, sr = librosa.load(song, res_type='kaiser_fast', duration=60)
         onset_env = librosa.onset.onset_strength(y=y, sr=sr)
         tempo_60 = librosa.beat.tempo(onset_envelope=onset_env, sr=sr)
-        return tempo[0], tempo_60[0]
+        return int(tempo[0]), int(tempo_60[0])
 
 
 def plot_bpm(fname):
@@ -296,13 +302,12 @@ def plot_keys(fname):
 
 
 # tool = 'librosa'
-# dataset = preprocess_metadata()
-# preprocess_bpm(dataset, 'librosa')
-fname = 'JSON/songs_librosa.json'
-movies_dict = json.load(open('JSON/songs_librosa copy.json'))
-preprocess_key(movies_dict, fname)
+# source = 'Sanremo'
+# dataset = preprocess_metadata(source)
+# dataset, fname = preprocess_bpm(dataset, 'librosa', source)
+# dataset = preprocess_key(dataset, fname)
 
-compare_movies_bpm(fname, 'bpm')
-plot_average_bpm(fname)
-plot_bpm(fname)
-plot_keys(fname)
+# compare_movies_bpm(fname, 'bpm')
+# plot_average_bpm(fname)
+# plot_bpm(fname)
+# plot_keys(fname)
