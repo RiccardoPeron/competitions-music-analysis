@@ -1,3 +1,4 @@
+black
 spotdl
 essentia
 IPython
