@@ -5,7 +5,7 @@ from fnmatch import fnmatch
 from argparse import ArgumentParser
 from tqdm import tqdm
 
-JSON_FILENAME = 'json_file_name'
+JSON_FILENAME = "json_file_name"
 
 
 def isMatch(name, patterns):
@@ -24,10 +24,9 @@ def parse_descriptors(d, include=None, ignore=None):
     while stack:
         name, k, v = stack.pop()
         if isinstance(v, dict):
-            stack.extend([(name + '.' + k1, k1, v1) for k1, v1 in v.items()])
+            stack.extend([(name + "." + k1, k1, v1) for k1, v1 in v.items()])
         elif isinstance(v, list):
-            stack.extend([(name + '.' + str(i), i, v[i])
-                         for i in range(len(v))])
+            stack.extend([(name + "." + str(i), i, v[i]) for i in range(len(v))])
         else:
             if include:
                 # 'include' flag specified => apply both include and ignore
@@ -43,29 +42,33 @@ def parse_descriptors(d, include=None, ignore=None):
 
 def convert(json_file, include, ignore):
     # print('Converting %s' % json_file)
-    data = json.load(open(json_file, 'r'))
+    data = json.load(open(json_file, "r"))
 
     return parse_descriptors(data, include, ignore)
 
 
 def convert_all(json_files, csv_file, include=None, ignore=None, add_filename=True):
 
-    with open(csv_file, 'w') as f_csv:
+    with open(csv_file, "w") as f_csv:
         print("Writing to %s" % csv_file)
-        writer = csv.writer(f_csv,
-                            delimiter=',',
-                            quotechar='"',
-                            quoting=csv.QUOTE_NONNUMERIC)
+        writer = csv.writer(
+            f_csv, delimiter=",", quotechar='"', quoting=csv.QUOTE_NONNUMERIC
+        )
         header = None
-        pbar = tqdm(total=len(json_files), unit='files',
-                    bar_format="Writing:\t{percentage:.0f}%|{bar:100}{r_bar}")
+        pbar = tqdm(
+            total=len(json_files),
+            unit="files",
+            bar_format="Writing:\t{percentage:.0f}%|{bar:100}{r_bar}",
+        )
         for f_json in json_files:
             d = convert(f_json, include, ignore)
 
             if add_filename:
                 if JSON_FILENAME in d:
                     print(
-                        "Error appending json filename to the CSV: `%s` name is already used." % JSON_FILENAME)
+                        "Error appending json filename to the CSV: `%s` name is already used."
+                        % JSON_FILENAME
+                    )
                     sys.exit()
                 else:
                     d[JSON_FILENAME] = f_json
@@ -100,8 +103,9 @@ def convert_all(json_files, csv_file, include=None, ignore=None, add_filename=Tr
     return
 
 
-if __name__ == '__main__':
-    parser = ArgumentParser(description="""
+if __name__ == "__main__":
+    parser = ArgumentParser(
+        description="""
 Converts a bunch of descriptor files from json to csv format.
 Descriptor trees are flattened, with additional indices added to descriptor
 names in the case of lists or nested lists
@@ -110,26 +114,40 @@ names in the case of lists or nested lists
 Descriptors can then be included/ignored by their flattened names using wildcards.
 After flattening and filtering, all inputs are expected to have exactly the same set
 of descriptor names to be able to merge them into one csv.
-""")
+"""
+    )
 
-    parser.add_argument('-i', '--input', nargs='+',
-                        help='Input JSON files', required=True)
     parser.add_argument(
-        '-o', '--output', help='Output CSV file', required=True)
+        "-i", "--input", nargs="+", help="Input JSON files", required=True
+    )
+    parser.add_argument("-o", "--output", help="Output CSV file", required=True)
 
-    parser.add_argument('--include', nargs='+',
-                        help='Descriptors to include (can use wildcards)', required=False)
-    parser.add_argument('--ignore', nargs='+',
-                        help='Descriptors to ignore (can use wildcards)', required=False)
+    parser.add_argument(
+        "--include",
+        nargs="+",
+        help="Descriptors to include (can use wildcards)",
+        required=False,
+    )
+    parser.add_argument(
+        "--ignore",
+        nargs="+",
+        help="Descriptors to ignore (can use wildcards)",
+        required=False,
+    )
 
-    parser.add_argument('--add-filename', help='Add input filenames to "%s" field in CSV' %
-                        JSON_FILENAME, action='store_true', required=False)
+    parser.add_argument(
+        "--add-filename",
+        help='Add input filenames to "%s" field in CSV' % JSON_FILENAME,
+        action="store_true",
+        required=False,
+    )
 
     args = parser.parse_args()
 
     if args.include and args.ignore and not set(args.include).isdisjoint(args.ignore):
-        print('You cannot specify the same descriptor patterns in both --include and --ignore flags')
+        print(
+            "You cannot specify the same descriptor patterns in both --include and --ignore flags"
+        )
         sys.exit()
 
-    convert_all(args.input, args.output, args.include,
-                args.ignore, args.add_filename)
+    convert_all(args.input, args.output, args.include, args.ignore, args.add_filename)
