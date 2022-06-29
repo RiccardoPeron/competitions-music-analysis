@@ -1,13 +1,8 @@
+.vscode
 /OST
 /OST_results
 /OST_wav
 /OST_splitted
 __pycache__
 /music-venv
-/Sanremo
-/Sanremo_wav
-/Sanremo_splitted
-/ESC
-/ESC_wav
-/ESC_results
-/ESC_splitted
+/Music
