@@ -4,6 +4,25 @@ import json
 import pandas as pd
 from tqdm import tqdm
 
+schema = {
+    "time": {
+        "duration": [],
+        "effective_duration": [],
+        "dynamicComplexity": [],
+        "loudness": [],
+        "intensity": [],
+    },
+    "tempo": {"bpm": [], "bpm_loudness": [], "danceability": []},
+    "tonal": {
+        "key": [],
+        "chordsChangesRate": [],
+        "inharmonicity": [],
+        "dissonance": [],
+    },
+}
+
+years = []
+
 
 def get_coefficent(fname, metric):
     f = open(fname)
@@ -59,4 +78,33 @@ def get_csv_coefficent(fname, csv):
                 print(id, "\t|\t", np.corrcoef(x, years)[0][1])
 
 
-get_csv_coefficent("JSON/ESCsongs.json", "OST_results/results.csv")
+def fill_schema(fname):
+    f = open(fname)
+    data = json.load(f)
+
+    for album in data:
+        for song in album["songs"]:
+            years.append(album["year"])
+            for category in ["time", "tempo", "tonal"]:
+                for element in song[category]:
+                    val = song[category][element]
+                    schema[category][element].append(val)
+
+    return schema
+
+
+def get_all_coeff(fname):
+    song_schema = fill_schema(fname)
+    for category in ["time", "tempo", "tonal"]:
+        for element in schema[category]:
+            try:
+                metric = schema[category][element]
+                coeff = np.corrcoef(metric, years)
+                print(f"| {element}\t\t|\t{coeff[0][1]} |")
+            except:
+                print(f"| {element}\t\t|\tTOFIX |")
+    return 0
+
+
+get_all_coeff("Results/ESC_essentia.json")
+# get_csv_coefficent("JSON/ESCsongs.json", "OST_results/results.csv")
