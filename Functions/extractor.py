@@ -1,16 +1,20 @@
+from bdb import effective
 import csv
+from email.mime import audio
 import os.path
 from os import listdir
 
 import essentia
 import essentia.standard as es
+import essentia.streaming as ess
 import librosa
 import pandas as pd
 import soundfile as sf
 from tqdm import tqdm
+import numpy as np
 
 # from os.path import isfile, join
-import json_to_csv
+
 
 DIR_WAV_FILES = "/home/riccardo/Tesi/disney-ost-analysis/Music/ESC_wav"
 DIR_SPLITTED_WAV_FILES = "/home/riccardo/Tesi/disney-ost-analysis/Music/ESC_splitted"
@@ -269,44 +273,174 @@ def write_csv(fname, song, feature):
     f.close()
 
 
-if __name__ == "__main__":
+def compute_time(audio):
+    duration = es.Duration()(audio)
+    effectiveDuration = es.EffectiveDuration()(audio)
+    dynamicComplexity, loudness = es.DynamicComplexity()(audio)
+    intensity = es.Intensity()(audio)
+    return {
+        "duration": duration,
+        "effective_duration": effectiveDuration,
+        "dynamicComplexity": dynamicComplexity,
+        "loudness": loudness,
+        "intensity": intensity,
+    }
 
-    # Uncomment if slicing is not performed
-    #
-    # audiofilenames_full = [f for f in listdir(DIR_WAV_FILES) if (os.path.isfile(os.path.join(DIR_WAV_FILES, f)) and (f.endswith(".wav") or f.endswith(".mp3")))]
-    audiofilenames_full = extract_files()
-    #
-    # Split each file in 3 equal parts; rename each file part with _000, _001, _002.
-    slices_number = 3
-    audiofilenames = slice_files(audiofilenames_full, slices_number)
 
-    # Comment if slicing is not performed:
-    audiofilenames = [
-        f
-        for f in sorted(listdir(DIR_SPLITTED_WAV_FILES))
-        if (
-            os.path.isfile(os.path.join(DIR_SPLITTED_WAV_FILES, f))
-            and (f.endswith(".wav") or f.endswith(".mp3"))
-        )
-    ]
+def compute_tempo(audio):
+    bpm = es.PercivalBpmEstimator()(audio)
+    bpm2, beats, beats_confidence, _, beats_intervals = es.RhythmExtractor2013(
+        method="multifeature"
+    )(audio)
+    loudness, loudnessBandRatio = es.BeatsLoudness(beats=beats)(audio)
+    danceability, dfa = es.Danceability()(audio)
+    loudness = float(np.mean(loudness))
 
-    order_processed_files = []
+    return {
+        "bpm": int(bpm),
+        "bpm_loudness": loudness,
+        "danceability": int((danceability * 100) / 3),
+    }
 
-    init_csv(RESULT_CSV)
-    pbar = tqdm(
-        total=len(audiofilenames),
-        unit="files",
-        bar_format="extracting:\t{percentage:.0f}%|{bar:100}{r_bar}",
+
+def compute_tonal(fname):
+    loader = ess.MonoLoader(filename=fname)
+    framecutter = ess.FrameCutter(frameSize=4096, hopSize=2048, silentFrames="noise")
+    windowing = ess.Windowing(type="blackmanharris62")
+    spectrum = ess.Spectrum()
+    spectralpeaks = ess.SpectralPeaks(
+        # orderBy="magnitude",
+        magnitudeThreshold=0.00001,
+        minFrequency=20,
+        maxFrequency=3500,
+        maxPeaks=60,
     )
-    for f in audiofilenames:
-        pbar.set_postfix({"filename": f[:20]})
-        try:
-            audiofilename = os.path.join(DIR_SPLITTED_WAV_FILES, f)
-            features = compute_all_features(audiofilename)
 
-            write_csv(RESULT_CSV, f, features)
-            order_processed_files.append(f)
-        except:
-            print("\n > Fail", audiofilename)
+    # Use default HPCP parameters for plots, however we will need higher resolution
+    # and custom parameters for better Key estimation
 
-        pbar.update(1)
+    hpcp = ess.HPCP()
+    hpcp_key = ess.HPCP(
+        size=36,  # we will need higher resolution for Key estimation
+        # assume tuning frequency is 44100.
+        referenceFrequency=440,
+        bandPreset=False,
+        minFrequency=20,
+        maxFrequency=3500,
+        weightType="cosine",
+        nonLinear=False,
+        windowSize=1.0,
+    )
+
+    key = ess.Key(
+        profileType="edma",  # Use profile for electronic music
+        numHarmonics=4,
+        pcpSize=36,
+        slope=0.6,
+        usePolyphony=True,
+        useThreeChords=True,
+    )
+
+    inharmonicity = ess.Inharmonicity()
+    harmonicPeaks = ess.HarmonicPeaks()
+    pitchYinFFT = ess.PitchYinFFT()
+    dissonance = ess.Dissonance()
+
+    # Use pool to store data
+    pool = essentia.Pool()
+
+    # Connect streaming algorithms
+    loader.audio >> framecutter.signal
+    framecutter.frame >> windowing.frame >> spectrum.frame
+    spectrum.spectrum >> spectralpeaks.spectrum
+    spectralpeaks.magnitudes >> hpcp.magnitudes
+    spectralpeaks.frequencies >> hpcp.frequencies
+    spectralpeaks.magnitudes >> hpcp_key.magnitudes
+    spectralpeaks.frequencies >> hpcp_key.frequencies
+    hpcp_key.hpcp >> key.pcp
+    hpcp.hpcp >> (pool, "tonal.hpcp")
+    key.key >> (pool, "tonal.key_key")
+    key.scale >> (pool, "tonal.key_scale")
+    key.strength >> (pool, "tonal.key_strength")
+
+    spectrum.spectrum >> pitchYinFFT.spectrum
+    pitchYinFFT.pitch >> harmonicPeaks.pitch
+    pitchYinFFT.pitchConfidence >> None
+    spectralpeaks.frequencies >> harmonicPeaks.frequencies
+    spectralpeaks.magnitudes >> harmonicPeaks.magnitudes
+    harmonicPeaks.harmonicFrequencies >> inharmonicity.frequencies
+    harmonicPeaks.harmonicMagnitudes >> inharmonicity.magnitudes
+    harmonicPeaks.harmonicFrequencies >> dissonance.frequencies
+    harmonicPeaks.harmonicMagnitudes >> dissonance.magnitudes
+    inharmonicity.inharmonicity >> (pool, "tonal.inharmonicity_inharmonicity")
+    dissonance.dissonance >> (pool, "tonal.dissonance_dissonance")
+
+    # Run streaming network
+    essentia.run(loader)
+
+    chords, strenght = es.ChordsDetection(hopSize=2048, windowSize=2)(
+        pool["tonal.hpcp"]
+    )
+
+    (
+        chordHistogram,
+        chordsNumberRate,
+        chordsChangesRate,
+        chordsKey,
+        chordsScale,
+    ) = es.ChordsDescriptors()(chords, pool["tonal.key_key"], pool["tonal.key_scale"])
+
+    inharm = sum(pool["tonal.inharmonicity_inharmonicity"])
+    diss = sum(pool["tonal.dissonance_dissonance"])
+
+    return {
+        # "chords": chords,
+        "key": pool["tonal.key_key"] + " " + pool["tonal.key_scale"],
+        "chordsChangesRate": chordsChangesRate,
+        "inharmonicity": inharm,
+        "dissonance": diss,
+    }
+
+
+# if __name__ == "__main__":
+#
+#     # Uncomment if slicing is not performed
+#     #
+#     # audiofilenames_full = [f for f in listdir(DIR_WAV_FILES) if (os.path.isfile(os.path.join(DIR_WAV_FILES, f)) and (f.endswith(".wav") or f.endswith(".mp3")))]
+#     audiofilenames_full = extract_files()
+#     #
+#     # Split each file in 3 equal parts; rename each file part with _000, _001, _002.
+#     slices_number = 3
+#     audiofilenames = slice_files(audiofilenames_full, slices_number)
+#
+#     # Comment if slicing is not performed:
+#     audiofilenames = [
+#         f
+#         for f in sorted(listdir(DIR_SPLITTED_WAV_FILES))
+#         if (
+#             os.path.isfile(os.path.join(DIR_SPLITTED_WAV_FILES, f))
+#             and (f.endswith(".wav") or f.endswith(".mp3"))
+#         )
+#     ]
+#
+#     order_processed_files = []
+#
+#     init_csv(RESULT_CSV)
+#     pbar = tqdm(
+#         total=len(audiofilenames),
+#         unit="files",
+#         bar_format="extracting:\t{percentage:.0f}%|{bar:100}{r_bar}",
+#     )
+#     for f in audiofilenames:
+#         pbar.set_postfix({"filename": f[:20]})
+#         try:
+#             audiofilename = os.path.join(DIR_SPLITTED_WAV_FILES, f)
+#             features = compute_all_features(audiofilename)
+#
+#             write_csv(RESULT_CSV, f, features)
+#             order_processed_files.append(f)
+#         except:
+#             print("\n > Fail", audiofilename)
+#
+#         pbar.update(1)
+#
