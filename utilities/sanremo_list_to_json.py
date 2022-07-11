@@ -148,7 +148,7 @@ json_file = []
 prefix = "ESC"  # 'Sanremo'
 start_year = 1956  # sanremo:1951
 
-for i, link in enumerate(playlists_eurovision):
+for i, link in enumerate(playlists_eurovision):  # playlists_sanremo
     json_file.append(
         {
             "title": prefix + "_" + str(start_year + i),
@@ -157,7 +157,7 @@ for i, link in enumerate(playlists_eurovision):
         }
     )
 
-    fname = prefix + ".json"
+    fname = "utilities/" + prefix + ".json"
     with open(fname, "w") as outfile:
         json.dump(json_file, outfile)
 
