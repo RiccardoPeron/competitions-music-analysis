@@ -1,4 +1,3 @@
-from spotdl import __main__ as spotdl
 import json
 import os
 import subprocess
@@ -6,11 +5,10 @@ import sys
 from pathlib import Path
 import youtube_dl
 
-print("import spotdl...")
-
 ydl_opts_download = {
     "format": "bestaudio/best",
     "cachedir": False,
+    "outtmpl": "%(id)s%(ext)s",
     "postprocessors": [
         {
             "key": "FFmpegExtractAudio",
@@ -64,8 +62,10 @@ def download(title, link, out_folder, i):
         fname = str(i) + " - " + title
     os.mkdir(fname)
     os.chdir("./" + fname)
-    # subprocess.check_call(["spotdl", link, "--output-format wav"])
-    ytdownload(link)
+    if "spotify" in link.lower():
+        subprocess.check_call(["spotdl", link, "--output-format wav"])
+    elif "youtube" in link.lower():
+        ytdownload(link)
     os.chdir("..")
     os.chdir("..")
 
