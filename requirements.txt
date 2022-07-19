@@ -1,6 +1,7 @@
 black
 spotdl
 essentia
+essentia-tensorflow
 IPython
 librosa
 tqdm
