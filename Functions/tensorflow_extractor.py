@@ -43,14 +43,14 @@ def plot_activations(ax, metadata):
 def get_model_results(audio_file, model_name):
     out = {}
 
-    with open("../Models/" + model_name + ".json", "r") as json_file:
+    with open("Models/" + model_name + ".json", "r") as json_file:
         metadata = json.load(json_file)
 
     # audio_file = "Music/ESC_wav/66 - ESC_2021/23-Måneskin - Zitti E Buoni - Italy 🇮🇹 - Grand Final - Eurovision 2021-RVH5dn1cxAQ.wav"
     audio = MonoLoader(sampleRate=16000, filename=audio_file)()
 
     activations = TensorflowPredictMusiCNN(
-        graphFilename="../Models/" + model_name + ".pb"
+        graphFilename="Models/" + model_name + ".pb",
     )(audio)
 
     ig, ax = plt.subplots(1, 1, figsize=(10, 10))
@@ -86,5 +86,6 @@ def all_models():
 
 
 # audio_file = "Music/ESC_wav/66 - ESC_2021/23-Måneskin - Zitti E Buoni - Italy 🇮🇹 - Grand Final - Eurovision 2021-RVH5dn1cxAQ.wav"
+# print(audio_file)
 # res = get_multiple_models_results(audio_file, all_models())
 # print(res)
