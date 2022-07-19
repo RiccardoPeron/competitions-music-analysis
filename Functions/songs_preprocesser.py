@@ -1,7 +1,7 @@
 import json
 import os
-from typing import Counter
 import warnings
+from typing import Counter
 
 import essentia.standard as es
 import eyed3
@@ -11,10 +11,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from tqdm import tqdm
 
-import song_key_extractor
+from Functions import extractor
+from Functions import tensorflow_extractor as tfextractor
 
 # uncomment to disable warnings
-# warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 
 class SetEncoder(json.JSONEncoder):
@@ -42,14 +44,31 @@ def get_metadata(song, i, usetrackn):
     return title, authors, track_num, duration
 
 
+def get_wav_path(song, album, i, source):
+    if i + 1 < 10:
+        album_title = "0" + str(i + 1)
+    else:
+        album_title = str(i + 1)
+    album_title += " - " + album["title"].replace(" ", "_")
+
+    if song["track_num"] < 10:
+        track_num = "0" + str(song["track_num"])
+    else:
+        track_num = str(song["track_num"])
+
+    return (
+        source + "_wav/" + album_title + "/" + track_num + "-" + song["title"] + ".wav"
+    )
+
+
 def preprocess_metadata(source, usetrackn=True):
     albums = []
     n_song = 0
-    if source == "Sanremo":
+    if source == "Music/Sanremo":
         base_year = 1951
-    elif source == "ESC":
+    elif source == "Music/ESC":
         base_year = 1956
-    elif source == "OST":
+    elif source == "Music/OST":
         base_year = 1937
 
     for folder in os.listdir(source):
@@ -93,118 +112,45 @@ def preprocess_metadata(source, usetrackn=True):
                 "songs": songs,
             }
         )
-    fname = "JSON/" + source + "songs.json"
+    fname = "Results/" + source.split("/")[1] + "_songs.json"
     with open(fname, "w") as outfile:
         json.dump(albums, outfile)
     return albums
 
 
-def get_wav_path(song, album, i, source):
-    if i + 1 < 10:
-        album_title = "0" + str(i + 1)
-    else:
-        album_title = str(i + 1)
-    album_title += " - " + album["title"].replace(" ", "_")
-
-    if song["track_num"] < 10:
-        track_num = "0" + str(song["track_num"])
-    else:
-        track_num = str(song["track_num"])
-
-    return (
-        source + "_wav/" + album_title + "/" + track_num + "-" + song["title"] + ".wav"
-    )
-
-
-def preprocess_bpm(albums_dict, tool, source):
+def preprocess_es_features(albums_dict, fname, source, features):
     n_song = 0
+
     for album in albums_dict:
         n_song += len(album["songs"])
     pbar = tqdm(
         total=n_song,
         unit="files",
-        bar_format="Preprocessing bpm:\t{percentage:.0f}%|{bar:100}{r_bar}",
+        bar_format="Preprocessing features:\t{percentage:.0f}%|{bar:100}{r_bar}",
     )
-
     for i, album in enumerate(albums_dict):
         for song in album["songs"]:
             pbar.set_postfix({"song": song["title"][:20]})
 
             wav_song = get_wav_path(song, album, i, source)
-            bpm, bpm_60 = extract(wav_song, tool)
-            song["bpm"] = bpm
-            song["bpm_60"] = bpm_60
+            audio = es.MonoLoader(filename=wav_song)()
+            if "time" in features:
+                song["time"] = extractor.compute_time(audio)
+            if "tempo" in features:
+                song["tempo"] = extractor.compute_tempo(audio)
+            if "tonal" in features:
+                song["tonal"] = extractor.compute_tonal(wav_song)
+            if "high_level" in features:
+                song["high_level"] = tfextractor.get_multiple_models_results(
+                    wav_song, tfextractor.all_models()
+                )
 
             pbar.update(1)
 
-    fname = "JSON/" + source + "songs_" + tool + ".json"
     with open(fname, "w") as outfile:
         json.dump(albums_dict, outfile)
 
     return albums_dict, fname
-
-
-def preprocess_key(albums_dict, fname, source):
-    n_song = 0
-    for album in albums_dict:
-        n_song += len(album["songs"])
-    pbar = tqdm(
-        total=n_song,
-        unit="files",
-        bar_format="Preprocessing keys:\t{percentage:.0f}%|{bar:100}{r_bar}",
-    )
-    for i, album in enumerate(albums_dict):
-        for song in album["songs"]:
-            pbar.set_postfix({"song": song["title"][:20]})
-
-            wav_song = get_wav_path(song, album, i, source)
-            key = song_key_extractor.get_song_key(wav_song)
-            song["key"] = key
-
-            pbar.update(1)
-
-    with open(fname, "w") as outfile:
-        json.dump(albums_dict, outfile)
-
-    return albums_dict
-
-
-def preprocess_danceability(albums_dict, fname, source):
-    n_song = 0
-    for album in albums_dict:
-        n_song += len(album["songs"])
-    pbar = tqdm(
-        total=n_song,
-        unit="files",
-        bar_format="Preprocessing danceability:\t{percentage:.0f}%|{bar:100}{r_bar}",
-    )
-    for i, album in enumerate(albums_dict):
-        for song in album["songs"]:
-            pbar.set_postfix({"song": song["title"][:20]})
-
-            wav_song = get_wav_path(song, album, i, source)
-            es_song = es.MonoLoader(filename=wav_song)()
-
-            danceability_preds = es.TensorflowPredictMusiCNN(
-                graphFilename="danceability-musicnn-msd-2.pb"
-            )(es_song)
-            danceability_metadata = json.load(
-                open("danceability-musicnn-msd-2.json", "r")
-            )["classes"]
-            danceability_preds = np.mean(danceability_preds, axis=0)
-            danceability = (danceability_metadata[0], danceability_preds[0] * 100)
-            song["danceability"] = danceability
-
-            pbar.update(1)
-
-    with open(fname, "w") as outfile:
-        json.dump(albums_dict, outfile)
-
-    return albums_dict
-
-
-def preprocess_mood(albums_dict, fname, source):
-    return albums_dict
 
 
 def extract(song, tool):
@@ -372,11 +318,13 @@ def plot_keys(fname):
 
 
 # tool = 'librosa'
-# source = "ESC"
-# fname = "JSON/ESCsongs_librosa.json"
+# source = "Music/ESC"
+# fname = "Results/ESC_essentia.json"
+# dataset = json.load(open("Results/ESC_essentia.json"))
 # dataset = preprocess_metadata(source, usetrackn=False)
 # dataset, fname = preprocess_bpm(dataset, 'librosa', source)
 # dataset = preprocess_key(dataset, fname)
+# dataset = preprocess_es_features(dataset, fname, source, features=["high_level"])
 
 # compare_albums_bpm(fname, 'bpm')
 # plot_average_bpm(fname)
