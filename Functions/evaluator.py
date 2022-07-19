@@ -1,27 +1,10 @@
-from statistics import mean
-import numpy as np
 import json
+
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-schema = {
-    "time": {
-        "duration": [],
-        "effective_duration": [],
-        "dynamicComplexity": [],
-        "loudness": [],
-        "intensity": [],
-    },
-    "tempo": {"bpm": [], "bpm_loudness": [], "danceability": []},
-    "tonal": {
-        "key": [],
-        "chordsChangesRate": [],
-        "inharmonicity": [],
-        "dissonance": [],
-    },
-}
-
-years = []
+import json_to_lists as jlist
 
 
 def get_coefficent(fname, metric):
@@ -78,33 +61,79 @@ def get_csv_coefficent(fname, csv):
                 print(id, "\t|\t", np.corrcoef(x, years)[0][1])
 
 
-def fill_schema(fname):
-    f = open(fname)
-    data = json.load(f)
-
-    for album in data:
-        for song in album["songs"]:
-            years.append(album["year"])
-            for category in ["time", "tempo", "tonal"]:
-                for element in song[category]:
-                    val = song[category][element]
-                    schema[category][element].append(val)
-
-    return schema
-
-
-def get_all_coeff(fname):
-    song_schema = fill_schema(fname)
+def get_all_coeff(schema, years):
+    coeff_list = []
     for category in ["time", "tempo", "tonal"]:
         for element in schema[category]:
             try:
                 metric = schema[category][element]
                 coeff = np.corrcoef(metric, years)
-                print(f"| {element}\t\t|\t{coeff[0][1]} |")
+                coeff = float("{:.2f}".format(coeff[0][1]))
+                coeff_list.append(coeff)
+                # print(f"| {element}\t\t\t\t|\t{coeff} |")
             except:
-                print(f"| {element}\t\t|\tTOFIX |")
-    return 0
+                # print(f"| {element}\t\t\t\t|\tTOFIX |")
+                coeff_list.append("TOFIX")
+                len(metric) == len(years)
+    return coeff_list
 
 
-get_all_coeff("Results/ESC_essentia.json")
+def make_latex_table(fname):
+    options = ["years", "index", "mean"]
+    coeffs = []
+
+    for opt in options:
+        schema, years = jlist.fill_schema(
+            fname,
+            y=opt,
+        )
+        coeffs.append(get_all_coeff(schema, years))
+
+    table = (
+        "\\begin{table}[!ht]\n"
+        + "\centering\n"
+        + "\\begin{tabular}{@{}lrrr@{}}\n"
+        + "\\toprule\n"
+        + "{\color[HTML]{333333} \\textbf{Feature}} & {\color[HTML]{333333} \\textbf{Year PRC}} & {\color[HTML]{333333} \\textbf{Song index PRC}} & {\color[HTML]{333333} \\textbf{Year mean PRC}} \\\\ \midrule\n"
+    )
+    i = 0
+    for metric in jlist.metrics:
+        if metric == "\hline":
+            table += metric + "\n"
+        else:
+            table += (
+                metric
+                + "&"
+                + str(coeffs[0][i])
+                + "&"
+                + str(coeffs[1][i])
+                + "&"
+                + str(coeffs[2][i])
+                + "\\\\\n"
+            )
+            i += 1
+
+    table += (
+        "\end{tabular}\n"
+        + "\caption{Pearson Relation Coefficent relativo ad ogni metrica}\n"
+        + "\label{table:}\n"
+        + "\end{table}"
+    )
+
+    return table
+
+
+# schema, years = jlist.fill_schema(
+#     "/home/riccardo/Tesi/disney-ost-analysis/Results/Sanremosongs_essentia.json",
+#     y="mean",
+# )
+# get_all_coeff(schema, years)
+
+# get_all_coeff("Results/ESC_essentia.json")
 # get_csv_coefficent("JSON/ESCsongs.json", "OST_results/results.csv")
+
+print(
+    make_latex_table(
+        "/home/riccardo/Tesi/disney-ost-analysis/Results/ESC_essentia.json"
+    )
+)
