@@ -69,7 +69,11 @@ def convert(source, usetrackn=True):
 
                     # convert into wav
                     # pbar.set_postfix(f"| {title}")
+                    ten_seconds = 10 * 1000
                     sound = AudioSegment.from_mp3(os.path.join(source, folder, song))
+                    sound = sound[
+                        ten_seconds:-ten_seconds
+                    ]  # remove first and last 10 seconds for each song
                     sound.export(
                         os.path.join(
                             source + "_wav", folder, (track_n + "-" + title + ".wav")
