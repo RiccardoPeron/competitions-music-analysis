@@ -257,20 +257,20 @@ def init_csv(fname):
     f.close()
 
 
-def write_csv(fname, song, feature):
-    features_names = sorted(features.descriptorNames())
-    row = []
-    row.append(song)
-    for name in features_names:
-        if type(feature[name]) == type(0) or type(feature[name]) == type(0.1):
-            row.append(feature[name])
-        else:
-            row.append(0)
-
-    f = open(fname, "a")
-    writer = csv.writer(f)
-    writer.writerow(row)
-    f.close()
+# def write_csv(fname, song, feature):
+#     features_names = sorted(features.descriptorNames())
+#     row = []
+#     row.append(song)
+#     for name in features_names:
+#         if type(feature[name]) == type(0) or type(feature[name]) == type(0.1):
+#             row.append(feature[name])
+#         else:
+#             row.append(0)
+#
+#     f = open(fname, "a")
+#     writer = csv.writer(f)
+#     writer.writerow(row)
+#     f.close()
 
 
 def compute_time(audio):
