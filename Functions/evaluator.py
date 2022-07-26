@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-import json_to_lists as jlist
+from Functions import json_to_lists as jlist
 
 
 def get_coefficent(fname, metric):
@@ -131,9 +131,3 @@ def make_latex_table(fname):
 
 # get_all_coeff("Results/ESC_essentia.json")
 # get_csv_coefficent("JSON/ESCsongs.json", "OST_results/results.csv")
-
-print(
-    make_latex_table(
-        "/home/riccardo/Tesi/disney-ost-analysis/Results/ESC_essentia.json"
-    )
-)
