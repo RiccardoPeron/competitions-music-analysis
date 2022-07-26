@@ -19,7 +19,7 @@ metrics = [
 ]
 
 
-def fill_schema(fname, y):
+def fill_schema(fname, y):  # index, years, mean
     f = open(fname)
     data = json.load(f)
 
@@ -65,42 +65,6 @@ def fill_schema(fname, y):
             if y == "index":
                 years.append(i)
                 i += 1
-    if y == "mean":
-        years = list(set(years))
-
-    return schema, years
-
-
-def ffill_schema(fname, y):
-    f = open(fname)
-    data = json.load(f)
-
-    years = []
-    i = 0
-
-    for album in data:
-        for song in album["songs"]:
-            if y == "years" or y == "mean":
-                years.append(album["year"])
-            if y == "index":
-                years.append(i)
-                i += 1
-
-            for category in ["time", "tempo", "tonal"]:
-                for element in song[category]:
-                    val = song[category][element]
-                    if type(val) == type(0) or type(val) == type(0.1):
-                        val = float("{:.2f}".format(val))
-                    schema[category][element].append(val)
-
-        if y == "mean":
-            for category in ["time", "tempo", "tonal"]:
-                for element in schema[category]:
-                    if type(schema[category][element][0]) == type(0) or type(
-                        schema[category][element][0]
-                    ) == type(0.1):
-                        schema[category][element] = np.mean(schema[category][element])
-
     if y == "mean":
         years = list(set(years))
 
