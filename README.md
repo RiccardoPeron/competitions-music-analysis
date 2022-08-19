@@ -1,6 +1,6 @@
-# disney-ost-analysis
+# competition-music-analysis
 
-Analysis of the soundtrack of disney movies form 1930 to present
+Analysis of the evolution of the partecipating song in the competition of Sanremo (IT) and Eurovision (EU)
 
 ## Setup
 
