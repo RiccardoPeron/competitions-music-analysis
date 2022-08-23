@@ -392,11 +392,14 @@ def compute_tonal(fname):
 
     inharm = sum(pool["tonal.inharmonicity_inharmonicity"])
     diss = sum(pool["tonal.dissonance_dissonance"])
+    chords_set = set(chords)
+    chordsNumber = len(chords_set)
 
     return {
         # "chords": chords,
         "key": pool["tonal.key_key"] + " " + pool["tonal.key_scale"],
         "chordsChangesRate": chordsChangesRate,
+        "chordsNumber": chordsNumber,
         "inharmonicity": inharm,
         "dissonance": diss,
     }
