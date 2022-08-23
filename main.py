@@ -1,11 +1,16 @@
-from Functions import downloader, converter, songs_preprocesser
+from sklearn.inspection import plot_partial_dependence
+from Functions import downloader, converter, songs_preprocesser, evaluator, plot
 import json
 
-tool = "librosa"
-source = "ESC"
+# EDIT HERE TO CHANGE FOLDERS AND TOOLS
+tool = "essentia"
+competition = "ESC"
+# -------------------------------------
+
+source = "Music/" + competition
 # dataset = json.load(open('JSON/Sanremosongs.json'))
-fname = "JSON/ESCsongs_" + tool + ".json"
-# dataset = json.load(open(fname))
+fname = "Results/" + competition + "songs_" + tool + ".json"
+dataset = json.load(open(fname))
 tracknum = False
 
 if __name__ == "__main__":
@@ -14,8 +19,8 @@ if __name__ == "__main__":
     print("Tool:\t" + tool)
     print("-" * 10)
 
-    # print('Downloading...')
-    # downloader.download_all(source+'.json', source)
+    print("Downloading...")
+    downloader.download_all(source + ".json", source)
 
     print("Converting...")
     converter.convert(source, usetrackn=tracknum)
@@ -23,17 +28,24 @@ if __name__ == "__main__":
     print("Processing metadata...")
     dataset = songs_preprocesser.preprocess_metadata(source, usetrackn=tracknum)
 
-    print("Processing bpm...")
-    dataset, fname = songs_preprocesser.preprocess_bpm(dataset, tool, source)
+    print("Processing features...")
+    dataset, fname = songs_preprocesser.preprocess_es_features(
+        dataset, fname, source, ["time", "tempo", "tonal"]
+    )
 
-    print("Processing key...")
-    dataset = songs_preprocesser.preprocess_key(dataset, fname, source)
+    dataset, fname = songs_preprocesser.tmp(dataset, fname, source)
 
-    songs_preprocesser.compare_movies_bpm(fname, "bpm")
-    print("> created")
-    songs_preprocesser.plot_average_bpm(fname)
-    print("> created")
-    songs_preprocesser.plot_bpm(fname)
-    print("> created")
-    songs_preprocesser.plot_keys(fname)
-    print("> created")
+    print(evaluator.make_latex_table(fname))
+
+    for opt in ["years", "index", "mean"]:
+        print(plot.plot_all(fname, source, opt))
+
+    plot.plot_keys(fname)
+    plot.plot_keys_pie(fname)
+
+    # EXPERIMENTAL SHOULD WORK BUT NOT TESTED
+
+    # print("processing gpu features...")
+    # dataset, fname = songs_preprocesser.preprocess_es_features(
+    #     dataset, fname, source, ["high_level"]
+    # )
