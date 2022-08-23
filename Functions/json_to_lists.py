@@ -16,6 +16,7 @@ metrics = [
     "chordsChangesRate",
     "inharmonicity",
     "dissonance",
+    "chordsNumber",
 ]
 
 
@@ -38,6 +39,7 @@ def fill_schema(fname, y):  # index, years, mean
             "chordsChangesRate": [],
             "inharmonicity": [],
             "dissonance": [],
+            "chordsNumber": [],
         },
     }
     i = 0

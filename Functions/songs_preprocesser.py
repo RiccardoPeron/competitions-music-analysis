@@ -153,6 +153,32 @@ def preprocess_es_features(albums_dict, fname, source, features):
     return albums_dict, fname
 
 
+def tmp(albums_dict, fname, source):
+    n_song = 0
+
+    for album in albums_dict:
+        n_song += len(album["songs"])
+    pbar = tqdm(
+        total=n_song,
+        unit="files",
+        bar_format="Preprocessing features:\t{percentage:.0f}%|{bar:100}{r_bar}",
+    )
+    for i, album in enumerate(albums_dict):
+        for song in album["songs"]:
+            pbar.set_postfix({"song": song["title"][:20]})
+
+            wav_song = get_wav_path(song, album, i, source)
+            tmp_tonal = extractor.compute_tonal(wav_song)
+            song["tonal"]["chordsNumber"] = tmp_tonal["chordsNumber"]
+
+            pbar.update(1)
+
+    with open(fname, "w") as outfile:
+        json.dump(albums_dict, outfile)
+
+    return albums_dict, fname
+
+
 def extract(song, tool):
     # retrieve song BPM with essentia
     if tool == "essentia":
